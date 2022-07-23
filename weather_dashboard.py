@@ -120,17 +120,15 @@ def draw_weather_card(
     return background
 
 
+def get_weather_data(location: str):
+    pass
 
 def main():
     # inky setup
     display = InkyWHAT("red")
     
-    # test new image library
+    # create the image to write to the display
     image = Image.new("P", (400, 300))
-    
-    # write some text in a downloaded font
-    font_size = 30
-    font = ImageFont.truetype("fonts/Lora-VariableFont_wght.ttf", font_size)
 
     # draw three weather cards
     todays_date = datetime.datetime.now()
@@ -140,7 +138,7 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="Current (F)",
-        temp=82,
+        temp=current_temp,
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_1,
