@@ -178,7 +178,25 @@ def noaa_forecast():
     }
 
     forecast_response = requests.get(important_data["forecast"])
-    return forecast_response.json()
+    
+    # if we get a bad response, return that
+    if forecast_response.status_code != 200:
+        return {
+            "status": response.status_code,
+            "error_message": forecast_response.text
+        }
+
+    # obtain the important data we want and return 
+    forecast_data = {
+        "status": 200,
+        "forecast": []
+    }
+    for prediction in forecast_response.json()["properties"]["periods"]:
+        forecast_data["forecast"].append({
+            "date_name": prediction["name"],
+            "temp": prediction["temperature"],
+        })
+    return forecast_data
 
 
 def main():
@@ -189,8 +207,14 @@ def main():
     image = Image.new("P", (400, 300))
 
     # get the weather data
-    print(openweather_current())
-    print(noaa_forecast())
+    current_weather = openweather_current()
+    if current_weather["status"] != 200:
+        print(current_weather)
+    forecast_weather = noaa_forecast()
+    if forecast_weather["status"] != 200:
+        print(forecast_weather)
+    # print(openweather_current())
+    # print(noaa_forecast())
 
     # draw three weather cards
     todays_date = datetime.datetime.now()
@@ -200,7 +224,7 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="Current (F)",
-        temp=103,
+        temp=current_weather["current_temp"],
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_1,
@@ -211,7 +235,7 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="High (F)",
-        temp=112,
+        temp=forecast_weather["forecast"][0]["temp"],
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_2,
@@ -222,7 +246,7 @@ def main():
         date=todays_date + datetime.timedelta(days=1),
         date_desc="Tmrw",
         subtitle="High (F)",
-        temp=109,
+        temp=forecast_weather["forecast"][2]["temp"],
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_3,
