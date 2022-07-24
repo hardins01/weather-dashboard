@@ -8,6 +8,9 @@ from PIL import Image, ImageDraw, ImageColor, ImageFont
 
 # import other useful things
 import datetime
+import yaml
+import requests
+import json
 
 
 """
@@ -120,8 +123,63 @@ def draw_weather_card(
     return background
 
 
-def get_weather_data(location: str):
-    pass
+def openweather_current():
+    # get info from config.yml
+    latitude = 0.0
+    longitude = 0.0
+    api_key = ""
+    with open("config.yml") as config_file:
+        config = yaml.full_load(config_file)
+        latitude = config["latitude"]
+        longitude = config["longitude"]
+        api_key = config["api_key"]
+
+    # craft the API call (current weather)
+    # https://openweathermap.org/current 
+    url = "https://api.openweathermap.org/data/2.5/weather?"\
+        f"lat={latitude}&lon={longitude}"\
+        f"&appid={api_key}&lang=en&units=imperial"
+
+    # make the API call
+    response = requests.get(url)
+
+    # if we got a bad response, return that
+    if response.status_code != 200:
+        return {
+            "status": response.status_code,
+            "error_message": response.text,
+        }
+    
+    # obtain the important data we want and return it
+    data = response.json()
+    return {
+        "status": 200,
+        "current_temp": data["main"]["temp"],
+        "icon": data["weather"][0]["icon"],
+    }
+
+
+def noaa_forecast():
+    # get the grid and office from lat and long
+    latitude = 0.0
+    longitude = 0.0
+    with open("config.yml") as config_file:
+        config = yaml.full_load(config_file)
+        latitude = config["latitude"]
+        longitude = config["longitude"]
+    url = f"https://api.weather.gov/points/{latitude},{longitude}"
+    
+
+    response = requests.get(url)
+    data = response.json()
+    important_data = {
+        "status_code": response.status_code,
+        "forecast": data["properties"]["forecast"],
+    }
+
+    forecast_response = requests.get(important_data["forecast"])
+    return forecast_response.json()
+
 
 def main():
     # inky setup
@@ -129,6 +187,10 @@ def main():
     
     # create the image to write to the display
     image = Image.new("P", (400, 300))
+
+    # get the weather data
+    print(openweather_current())
+    print(noaa_forecast())
 
     # draw three weather cards
     todays_date = datetime.datetime.now()
@@ -138,7 +200,7 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="Current (F)",
-        temp=current_temp,
+        temp=103,
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_1,
@@ -149,7 +211,7 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="High (F)",
-        temp=77,
+        temp=112,
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_2,
@@ -160,7 +222,7 @@ def main():
         date=todays_date + datetime.timedelta(days=1),
         date_desc="Tmrw",
         subtitle="High (F)",
-        temp=81,
+        temp=109,
         condition="cloudy",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_3,
@@ -171,7 +233,7 @@ def main():
     image = image.rotate(180)
     display.set_image(image)
     display.show()
-
+    
 
 if __name__ == "__main__":
     main()

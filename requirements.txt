@@ -1,0 +1,4 @@
+inky[rpi,example-depends]
+Pillow
+pyyaml
+requests
