@@ -29,9 +29,9 @@ Temps and conditions update every 30 minutes
 
 """
 
-WEATHER_CARD_POS_1 = (0, 0)
-WEATHER_CARD_POS_2 = (135, 0)
-WEATHER_CARD_POS_3 = (270, 0)
+WEATHER_CARD_POS_1 = (0, 90)
+WEATHER_CARD_POS_2 = (135, 90)
+WEATHER_CARD_POS_3 = (270, 90)
 
 """
 Function to draw a weather card on the provided background
@@ -41,7 +41,7 @@ Weather cards contain the following items:
     subtitle (str)
     temp (int)
     condition_icon (PIL.Image)
-Weather cards are 130px wide and 200px tall, with 5px gaps between them
+Weather cards are 130px wide and 220px tall, with 5px gaps between them
 """
 def draw_weather_card(
     background: PIL.Image, 
@@ -61,12 +61,12 @@ def draw_weather_card(
     subtitle_font_size = 18
     subtitle_font = ImageFont.truetype(font_path, subtitle_font_size)
 
-    temp_font_size = 55
+    temp_font_size = 52
     temp_font = ImageFont.truetype(font_path, temp_font_size)
 
 
     # create a new image to represent the weather card
-    weather_card = Image.new("P", (130, 200), 0)
+    weather_card = Image.new("P", (130, 210), 0)
     draw_weather_card = ImageDraw.Draw(weather_card)
 
 
@@ -105,7 +105,7 @@ def draw_weather_card(
     draw_weather_card.text(
         (65, 2*date_font_size+subtitle_font_size+12),
         str(temp),
-        fill=1,
+        fill=2,
         anchor="mt",
         font=temp_font,
     )
@@ -113,14 +113,85 @@ def draw_weather_card(
 
     # load the condition_icon image, based on the condition given
     with Image.open(f"icons/{condition}.png", "r") as condition_icon:
-        weather_icon_pos = (25, 120)
-        condition_icon.thumbnail((80, 80))
+        weather_icon_pos = (25, 130)
+        # condition_icon.thumbnail((80, 80))
+        # condition_icon = condition_icon.convert("L")
         weather_card.paste(condition_icon, weather_icon_pos)
 
 
     # return the value that we've been modifying, the given background
     background.paste(weather_card, card_pos)
     return background
+
+
+"""
+Function to draw a weather banner on top of the provided background
+"""
+def draw_weather_banner(
+    background: PIL.Image,
+    date: datetime,
+    date_desc: str,
+    subtitle: str,
+    temp: int,
+    condition: str,
+    font_path: str,
+) -> PIL.Image:
+
+    # generate the fonts we'll need
+    date_font_size = 40
+    date_font = ImageFont.truetype(font_path, date_font_size)
+
+    subtitle_font_size = 40
+    subtitle_font = ImageFont.truetype(font_path, subtitle_font_size)
+
+    temp_font_size = 70
+    temp_font = ImageFont.truetype(font_path, temp_font_size)
+ 
+    
+    # create a new image to represent the weather banner
+    weather_banner = Image.new("P", (400, 85), 0)
+    draw_weather_banner = ImageDraw.Draw(weather_banner)
+
+
+    # write the given date to the weather banner
+    date_text = date.strftime("%B %-d")
+    draw_weather_banner.text(
+        (0, 0),
+        date_text,
+        fill=1,
+        anchor="lt",
+        font=date_font,
+    )
+
+    # write the given subtitle to the weather banner
+    draw_weather_banner.text(
+        (0, 40),
+        subtitle,
+        fill=1,
+        anchor="lt",
+        font=subtitle_font,
+    )
+
+    # write the given temperature to the weather banner
+    draw_weather_banner.text(
+        (260, 12),
+        str(int(temp)),
+        fill=2,
+        anchor="mt",
+        font=temp_font,
+    )
+ 
+  
+
+    # load the condition_icon image, based on the condition given
+    with Image.open(f"icons/{condition}.png", "r") as condition_icon:
+        weather_icon_pos = (320, 0)
+        weather_banner.paste(condition_icon, weather_icon_pos)
+
+
+    background.paste(weather_banner, (0, 0))
+    return background
+    
 
 
 def openweather_current():
@@ -205,7 +276,7 @@ def main():
     
     # create the image to write to the display
     image = Image.new("P", (400, 300))
-
+    
     # get the weather data
     current_weather = openweather_current()
     if current_weather["status"] != 200:
@@ -216,28 +287,42 @@ def main():
     # print(openweather_current())
     # print(noaa_forecast())
 
-    # draw three weather cards
     todays_date = datetime.datetime.now()
     
+
+    # draw the weather banner 
+    image = draw_weather_banner(
+        background=image,
+        date=todays_date,
+        date_desc="Today",
+        subtitle="Current (F)",
+        temp=current_weather["current_temp"],
+        condition="sunny",
+        font_path="fonts/BeVietnamPro-Medium.ttf",
+    )
+    
+
+
+    # draw three weather cards
     image = draw_weather_card(
         background=image, 
         date=todays_date,
         date_desc="Today",
         subtitle="Current (F)",
-        temp=current_weather["current_temp"],
-        condition="cloudy",
+        temp=forecast_weather["forecast"][0]["temp"],
+        condition="sunny",
         font_path="fonts/Lora-VariableFont_wght.ttf",
         card_pos=WEATHER_CARD_POS_1,
     )
 
     image = draw_weather_card(
         background=image,
-        date=todays_date,
+        date=todays_date + datetime.timedelta(days=1),
         date_desc="Today",
         subtitle="High (F)",
-        temp=forecast_weather["forecast"][0]["temp"],
-        condition="cloudy",
-        font_path="fonts/Lora-VariableFont_wght.ttf",
+        temp=forecast_weather["forecast"][1]["temp"],
+        condition="clear_night",
+        font_path="fonts/PathwayGothicOne-Regular.ttf",
         card_pos=WEATHER_CARD_POS_2,
     )
     
@@ -247,11 +332,12 @@ def main():
         date_desc="Tmrw",
         subtitle="High (F)",
         temp=forecast_weather["forecast"][2]["temp"],
-        condition="cloudy",
-        font_path="fonts/Lora-VariableFont_wght.ttf",
+        condition="sunny",
+        font_path="fonts/Ramabhadra-Regular.ttf",
         card_pos=WEATHER_CARD_POS_3,
     )
 
+    
 
     # draw the image in the correct orientation on the screen
     image = image.rotate(180)
