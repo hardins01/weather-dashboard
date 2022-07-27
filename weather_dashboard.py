@@ -154,7 +154,7 @@ def draw_weather_banner(
 
 
     # write the given date to the weather banner
-    date_text = date.strftime("%B %-d")
+    date_text = date.strftime("%a %b %-d")
     draw_weather_banner.text(
         (0, 0),
         date_text,
@@ -296,9 +296,9 @@ def main():
         date=todays_date,
         date_desc="Today",
         subtitle="Current (F)",
-        temp=current_weather["current_temp"],
+        temp=108,
         condition="sunny",
-        font_path="fonts/BeVietnamPro-Medium.ttf",
+        font_path="fonts/Ramabhadra-Regular.ttf",
     )
     
 
@@ -308,21 +308,21 @@ def main():
         background=image, 
         date=todays_date,
         date_desc="Today",
-        subtitle="Current (F)",
+        subtitle="High (F)",
         temp=forecast_weather["forecast"][0]["temp"],
         condition="sunny",
-        font_path="fonts/Lora-VariableFont_wght.ttf",
+        font_path="fonts/Ramabhadra-Regular.ttf",
         card_pos=WEATHER_CARD_POS_1,
     )
 
     image = draw_weather_card(
         background=image,
         date=todays_date + datetime.timedelta(days=1),
-        date_desc="Today",
-        subtitle="High (F)",
+        date_desc="Tonight",
+        subtitle="Low (F)",
         temp=forecast_weather["forecast"][1]["temp"],
         condition="clear_night",
-        font_path="fonts/PathwayGothicOne-Regular.ttf",
+        font_path="fonts/Ramabhadra-Regular.ttf",
         card_pos=WEATHER_CARD_POS_2,
     )
     
