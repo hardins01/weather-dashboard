@@ -11,6 +11,8 @@ import datetime
 import yaml
 import requests
 import json
+from time import sleep
+import logging
 
 
 """
@@ -32,6 +34,16 @@ Temps and conditions update every 30 minutes
 WEATHER_CARD_POS_1 = (0, 90)
 WEATHER_CARD_POS_2 = (135, 90)
 WEATHER_CARD_POS_3 = (270, 90)
+
+
+# initialize logging
+logging.basicConfig(
+    filename="logs/output.log",
+    encoding="utf-8",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%d-%m-%Y %H:%M:%S"
+)
 
 """
 Function to draw a weather card on the provided background
@@ -112,11 +124,12 @@ def draw_weather_card(
 
 
     # load the condition_icon image, based on the condition given
-    with Image.open(f"icons/{condition}.png", "r") as condition_icon:
-        weather_icon_pos = (25, 130)
-        # condition_icon.thumbnail((80, 80))
-        # condition_icon = condition_icon.convert("L")
-        weather_card.paste(condition_icon, weather_icon_pos)
+    try:
+        with Image.open(f"icons/{condition}.png", "r") as condition_icon:
+            weather_icon_pos = (25, 130)
+            weather_card.paste(condition_icon, weather_icon_pos)
+    except OSError as exception:
+        logging.exception(f"Could not get icon: {exception}")
 
 
     # return the value that we've been modifying, the given background
@@ -138,7 +151,7 @@ def draw_weather_banner(
 ) -> PIL.Image:
 
     # generate the fonts we'll need
-    date_font_size = 40
+    date_font_size = 34
     date_font = ImageFont.truetype(font_path, date_font_size)
 
     subtitle_font_size = 40
@@ -154,7 +167,7 @@ def draw_weather_banner(
 
 
     # write the given date to the weather banner
-    date_text = date.strftime("%a %b %-d")
+    date_text = date.strftime("%b %-d %I:%M")
     draw_weather_banner.text(
         (0, 0),
         date_text,
@@ -165,7 +178,7 @@ def draw_weather_banner(
 
     # write the given subtitle to the weather banner
     draw_weather_banner.text(
-        (0, 40),
+        (0, 38),
         subtitle,
         fill=1,
         anchor="lt",
@@ -184,9 +197,12 @@ def draw_weather_banner(
   
 
     # load the condition_icon image, based on the condition given
-    with Image.open(f"icons/{condition}.png", "r") as condition_icon:
-        weather_icon_pos = (320, 0)
-        weather_banner.paste(condition_icon, weather_icon_pos)
+    try:
+        with Image.open(f"icons/{condition}.png", "r") as condition_icon:
+            weather_icon_pos = (320, 0)
+            weather_banner.paste(condition_icon, weather_icon_pos)
+    except OSError as exception:
+        logging.exception(f"Could not get icon: {exception}")
 
 
     background.paste(weather_banner, (0, 0))
@@ -216,6 +232,7 @@ def openweather_current():
 
     # if we got a bad response, return that
     if response.status_code != 200:
+        logging.error(f"OpenWeather get returned non-200: {response.status_code}, {response.text}")
         return {
             "status": response.status_code,
             "error_message": response.text,
@@ -223,6 +240,7 @@ def openweather_current():
     
     # obtain the important data we want and return it
     data = response.json()
+    logging.info("OpenWeather data gotten")
     return {
         "status": 200,
         "current_temp": data["main"]["temp"],
@@ -252,8 +270,9 @@ def noaa_forecast():
     
     # if we get a bad response, return that
     if forecast_response.status_code != 200:
+        logging.error(f"NOAA forecast get returned non-200: {forecast_response.status_code}, {forecast_response.text}")
         return {
-            "status": response.status_code,
+            "status": forecast_response.status_code,
             "error_message": forecast_response.text
         }
 
@@ -265,85 +284,129 @@ def noaa_forecast():
     for prediction in forecast_response.json()["properties"]["periods"]:
         forecast_data["forecast"].append({
             "date_name": prediction["name"],
+            "date": datetime.date.fromisoformat(prediction["startTime"][:10]),
             "temp": prediction["temperature"],
+            "is_daytime": prediction["isDaytime"],
+            "icon": prediction["icon"].split("/")[6].split("?")[0],
         })
+    logging.info("NOAA forecast data gotten")
     return forecast_data
+
+
+def get_icon(icon_name: str, daytime: bool = False) -> str:
+    # using a mapping of icons I determined, get the icon name given the api's names
+    if icon_name in ["skc", "01d", "few", "wind_skc", "wind_few", "hot"]:
+        return "sunny" if daytime else "clear_night"
+    if icon_name == "01n":
+        return "clear_night"
+    if icon_name in ["02d", "02n", "sct", "wind_sct"]:
+        return "partly_cloudy"
+    if icon_name in ["03d", "03n", "04d", "04n", "bkn", "ovc", "wind_bkn", "wind_ovc"]:
+        return "cloudy"
+    if icon_name in ["09d", "09n", "10d", "10n", "rain", "rain_showers", "rain_showers_hi", "tornado", "hurricane", "tropical_storm"]:
+        return "rain"
+    if icon_name in ["11d", "11n", "tsra", "tsra_sct", "tsra_hi"]:
+        return "thunderstorm"
+    if icon_name in ["13d", "13n", "snow", "rain_snow", "rain_sleet", "snow_sleet", "fzra", "rain_fzra", "snow_fzra", "sleet", "cold", "blizzard"]:
+        return "snow"
+    if icon_name in ["50d", "50n", "dust", "smoke", "haze", "fog"]:
+        return "haze"
+    logging.error(f"Icon not found icon_name: {icon_name} daytime: {daytime}")
+    return "unknown" # default, cause pic to not print
+
+def get_date_desc(today: datetime.date, date: datetime.date, daytime: bool):
+    # provide the date desc ("Today", "Tngt", "Tmrw", etc)
+    if today.day == date.day:
+        return "Today" if daytime else "Tngt"
+    if (date - today).days == 1:
+        return "Tmrw"
+    logging.error(f"Date description not found today: {today} date: {date} daytime: {daytime}")
+    return "???"
 
 
 def main():
     # inky setup
     display = InkyWHAT("red")
     
-    # create the image to write to the display
-    image = Image.new("P", (400, 300))
-    
-    # get the weather data
-    current_weather = openweather_current()
-    if current_weather["status"] != 200:
-        print(current_weather)
-    forecast_weather = noaa_forecast()
-    if forecast_weather["status"] != 200:
-        print(forecast_weather)
-    # print(openweather_current())
-    # print(noaa_forecast())
+    # in a while loop, to run forever until the process is killed;
+    while True:
 
-    todays_date = datetime.datetime.now()
-    
+        # create the image to write
+        image = Image.new("P", (400, 300))
 
-    # draw the weather banner 
-    image = draw_weather_banner(
-        background=image,
-        date=todays_date,
-        date_desc="Today",
-        subtitle="Current (F)",
-        temp=108,
-        condition="sunny",
-        font_path="fonts/Ramabhadra-Regular.ttf",
-    )
-    
+        # get the weather data
+        current_weather = openweather_current()
+        forecast_weather = noaa_forecast()
+        if current_weather["status"] == 200 and forecast_weather["status"] == 200:
 
+            todays_date = datetime.date.today()
+            current_datetime = datetime.datetime.now()
+            current_hour = current_datetime.time().hour
 
-    # draw three weather cards
-    image = draw_weather_card(
-        background=image, 
-        date=todays_date,
-        date_desc="Today",
-        subtitle="High (F)",
-        temp=forecast_weather["forecast"][0]["temp"],
-        condition="sunny",
-        font_path="fonts/Ramabhadra-Regular.ttf",
-        card_pos=WEATHER_CARD_POS_1,
-    )
-
-    image = draw_weather_card(
-        background=image,
-        date=todays_date + datetime.timedelta(days=1),
-        date_desc="Tonight",
-        subtitle="Low (F)",
-        temp=forecast_weather["forecast"][1]["temp"],
-        condition="clear_night",
-        font_path="fonts/Ramabhadra-Regular.ttf",
-        card_pos=WEATHER_CARD_POS_2,
-    )
-    
-    image = draw_weather_card(
-        background=image,
-        date=todays_date + datetime.timedelta(days=1),
-        date_desc="Tmrw",
-        subtitle="High (F)",
-        temp=forecast_weather["forecast"][2]["temp"],
-        condition="sunny",
-        font_path="fonts/Ramabhadra-Regular.ttf",
-        card_pos=WEATHER_CARD_POS_3,
-    )
-
+            # draw the weather banner 
+            image = draw_weather_banner(
+                background=image,
+                date=current_datetime,
+                date_desc="Today",
+                subtitle="Current (F)",
+                temp=current_weather["current_temp"],
+                condition=get_icon(current_weather["icon"], True if current_hour >= 6 and current_hour <= 20 else False),
+                font_path="fonts/Ramabhadra-Regular.ttf",
+            )
     
 
-    # draw the image in the correct orientation on the screen
-    image = image.rotate(180)
-    display.set_image(image)
-    display.show()
+
+            # draw three weather cards
+            sub = "High (F)" if forecast_weather["forecast"][0]["is_daytime"] else "Low (F)"
+            image = draw_weather_card(
+                background=image, 
+                date=forecast_weather["forecast"][0]["date"],
+                date_desc=get_date_desc(todays_date, forecast_weather["forecast"][0]["date"], forecast_weather["forecast"][0]["is_daytime"]),
+                subtitle=sub,
+                temp=forecast_weather["forecast"][0]["temp"],
+                condition=get_icon(forecast_weather["forecast"][0]["icon"], forecast_weather["forecast"][0]["is_daytime"]),
+                font_path="fonts/Ramabhadra-Regular.ttf",
+                card_pos=WEATHER_CARD_POS_1,
+            )
+
+            sub = "High (F)" if forecast_weather["forecast"][1]["is_daytime"] else "Low (F)"
+            image = draw_weather_card(
+                background=image,
+                date=forecast_weather["forecast"][1]["date"],
+                date_desc=get_date_desc(todays_date, forecast_weather["forecast"][1]["date"], forecast_weather["forecast"][1]["is_daytime"]),
+                subtitle=sub,
+                temp=forecast_weather["forecast"][1]["temp"],
+                condition=get_icon(forecast_weather["forecast"][1]["icon"], forecast_weather["forecast"][1]["is_daytime"]),
+                font_path="fonts/Ramabhadra-Regular.ttf",
+                card_pos=WEATHER_CARD_POS_2,
+            )
+
+            sub = "High (F)" if forecast_weather["forecast"][2]["is_daytime"] else "Low (F)"
+            image = draw_weather_card(
+                background=image,
+                date=forecast_weather["forecast"][2]["date"],
+                date_desc=get_date_desc(todays_date, forecast_weather["forecast"][2]["date"], forecast_weather["forecast"][2]["is_daytime"]),
+                subtitle=sub,
+                temp=forecast_weather["forecast"][2]["temp"],
+                condition=get_icon(forecast_weather["forecast"][2]["icon"], forecast_weather["forecast"][2]["is_daytime"]),
+                font_path="fonts/Ramabhadra-Regular.ttf",
+                card_pos=WEATHER_CARD_POS_3,
+            )
     
+
+
+            # draw the image in the correct orientation on the screen
+            image = image.rotate(180)
+            display.set_image(image)
+            display.show()
+            logging.info("New weather data drawn to display")
+        
+        # sleep for 10 minutes
+        logging.info("Begin sleep")
+        sleep(600)
+        logging.info("End sleep")
+
 
 if __name__ == "__main__":
     main()
+
